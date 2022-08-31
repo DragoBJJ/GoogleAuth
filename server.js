@@ -14,6 +14,8 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const PORT = process.env.PORT || 3000;
+
 const config = {
   CLIENT_ID: process.env.CLIENT_ID,
   CLIENT_SECRET: process.env.CLIENT_SECRET,
@@ -34,6 +36,16 @@ const verifyCallback = (accessToken, refreshToken, profile, done) => {
 
 passport.use(new Strategy(AUTH_OPTIONS, verifyCallback));
 
+//Save session to the cookie
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+// Read the session from the cookie
+passport.deserializeUser((id, done) => {
+  done(null, id);
+});
+
 const app = express();
 
 app.use(helmet());
@@ -45,7 +57,7 @@ app.use(
   })
 );
 app.use(passport.initialize());
-const PORT = 3000;
+app.use(passport.session());
 
 app.get(
   "/auth/google",
@@ -56,24 +68,24 @@ app.get(
 
 app.get(
   "/auth/google/callback",
-  passport.authenticate(
-    "google",
-    {
-      failureRedirect: "/failure",
-      successRedirect: "/",
-      session: false,
-    },
-    (req, res) => {
-      console.log("Google called us back !");
-    }
-  )
+  passport.authenticate("google", {
+    failureRedirect: "/failure",
+    successRedirect: "/",
+    session: true,
+  }),
+  (req, res) => {
+    console.log("Google called us back !");
+  }
 );
 
 app.get("/failure", (req, res) => {
   return res.send("Failed to log in !");
 });
 
-app.get("/auth/logout", (req, res) => {});
+app.get("/auth/logout", (req, res) => {
+  req.logOut();
+  return res.redirect("/");
+});
 
 app.get("/secret", checkLoggedIn, (req, res) => {
   res.status(200).send("Your personal secret value is 42");
